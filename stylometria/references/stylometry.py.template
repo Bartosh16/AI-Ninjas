@@ -1,0 +1,246 @@
+"""Stylometric analysis template.
+
+Adjust constants below (ROOT, CORPUS_DIR), then run with Python 3.10+ (stdlib only).
+Outputs:
+  - {ROOT}/_stats.json — wszystkie surowe statystyki (n-gramy, openers, sample sentences)
+  - {ROOT}/_stats-raw.md — czytelny dump statystyk z próbkami
+
+Customization points:
+  - SIGNATURE_PHRASES — lista fraz których szukasz konkretnie (zaktualizuj po pierwszym przebiegu)
+  - STOPWORDS — bazowa polska lista; dorzuć żargon korpusu jeśli go zaszumia
+  - TEXT_EXTENSIONS — jakie pliki ładujesz
+"""
+from __future__ import annotations
+import collections
+import json
+import re
+import sys
+from pathlib import Path
+
+# ===== CONFIG — DOSTOSUJ PRZED URUCHOMIENIEM =====
+ROOT = Path(r"PATH/TO/stylometria")  # folder gdzie zapisać wyniki
+CORPUS_DIR = Path(r"PATH/TO/corpus")  # folder ze źródłowymi tekstami (.txt/.md/.vtt/.json3)
+TEXT_EXTENSIONS = {".txt", ".md"}
+LANG = "pl"  # "pl" lub "en" — wpływa na stopwords i regex tokenizacji
+
+OUT_JSON = ROOT / "_stats.json"
+OUT_MD = ROOT / "_stats-raw.md"
+
+# Frazy, których obecność/częstość chcesz świadomie zmierzyć (po pierwszym przebiegu dorzuć top n-gramy które Cię zaskoczyły):
+SIGNATURE_PHRASES = [
+    # generyczne — działają dla większości korpusów PL
+    "po prostu", "tak naprawdę", "na przykład", "krok po kroku",
+    "po pierwsze", "po drugie", "trzeci wniosek",
+    "mam nadzieję", "dzięki temu", "jak widzisz", "to jest",
+    # specyficzne dla autora — dopisz po pierwszym oglądzie top n-gramów
+]
+
+# ===== STOPWORDS =====
+STOPWORDS_PL = set("""
+a aby ale albo ani bardzo bo by była było były bym był chce chyba ci co coś czy czyli dla
+do dziś dzisiaj go gdy gdyby gdzie i ich ile im inne innych iż ja jak jaki jakie jakim jakimi
+jakiś jako jakąś je jeden jedna jedno jednak jego jej jest jeszcze już ją kiedy kilka koniec
+ktoś która które których którym którymi który którzy ku lub ma mają mam mamy mi mnie moja
+moje moim moją mogę może można mu my na nad nam nas nasz nasza nasze niech nie niż nim no
+o od po pod prze przed przez przy ta tak takie tam te tego tej ten teraz też to tu tutaj
+tych tylko tym tymi u w wam was we wiele więc więcej wszelkie wszelki wszystkich wszystkie
+wszystko wszystkim wy z za ze zaś że żeby się swoim swoich swoje sobie sam są ty tę nasi
+"""\
+.split()) | set("""
+muzyka odchrząknięcie eee ee em uhm uh y yyy yy hm hmm właśnie ok tutaj on ona ono oni one
+""".split())
+
+STOPWORDS_EN = set("""
+a about after all also an and any are as at be been but by can could did do does for from
+get got had has have he her here him his how i if in into is it its just like me my no not
+of on or our out so some than that the their them then there these they this to too up was
+we were what when where which who will with would you your
+""".split())
+
+STOPWORDS = STOPWORDS_PL if LANG == "pl" else STOPWORDS_EN
+
+WORD_RE = re.compile(
+    r"[A-Za-zĄąĆćĘęŁłŃńÓóŚśŹźŻż]+" if LANG == "pl" else r"[A-Za-z]+"
+)
+
+
+def read_corpus() -> list[dict]:
+    items = []
+    for p in sorted(CORPUS_DIR.rglob("*")):
+        if p.is_file() and p.suffix.lower() in TEXT_EXTENSIONS:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+            # If file has a "---" leader (YT transcript style), use only body
+            if "\n---\n" in text:
+                _, body = text.split("\n---\n", 1)
+            elif text.startswith("---"):
+                _, body = text.split("---", 1)
+            else:
+                body = text
+            items.append({"file": p.name, "body": body.strip()})
+    return items
+
+
+def tokenize_words(text: str) -> list[str]:
+    return [m.lower() for m in WORD_RE.findall(text)]
+
+
+def split_sentences(text: str) -> list[str]:
+    t = re.sub(r"\[[^\]]+\]", " ", text)  # remove [muzyka] etc
+    t = re.sub(r"\s+", " ", t).strip()
+    parts = re.split(r"(?<=[\.\?\!])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ])", t)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def ngrams(tokens: list[str], n: int) -> list[tuple]:
+    return list(zip(*[tokens[i:] for i in range(n)]))
+
+
+def main() -> None:
+    items = read_corpus()
+    if not items:
+        print(f"No corpus files found in {CORPUS_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    all_text = "\n\n".join(it["body"] for it in items)
+    all_tokens = tokenize_words(all_text)
+    sentences = []
+    for it in items:
+        sentences.extend(split_sentences(it["body"]))
+
+    sent_lengths = [len(tokenize_words(s)) for s in sentences if tokenize_words(s)]
+    avg_sent = sum(sent_lengths) / len(sent_lengths) if sent_lengths else 0
+    median_sent = sorted(sent_lengths)[len(sent_lengths)//2] if sent_lengths else 0
+    very_short = [s for s, l in zip(sentences, sent_lengths) if 2 <= l <= 5]
+    long_sentences = [s for s, l in zip(sentences, sent_lengths) if l >= 30]
+
+    types = set(all_tokens)
+    ttr = len(types) / len(all_tokens) if all_tokens else 0
+
+    content_tokens = [t for t in all_tokens if t not in STOPWORDS and len(t) > 2]
+    top_words = collections.Counter(content_tokens).most_common(80)
+
+    top_bi = collections.Counter(ngrams(all_tokens, 2)).most_common(60)
+    top_tri = collections.Counter(ngrams(all_tokens, 3)).most_common(60)
+    top_4 = collections.Counter(ngrams(all_tokens, 4)).most_common(40)
+    top_5 = collections.Counter(ngrams(all_tokens, 5)).most_common(30)
+
+    openers = collections.Counter()
+    enders = collections.Counter()
+    for s in sentences:
+        t = tokenize_words(s)
+        if len(t) >= 2:
+            openers[(t[0], t[1])] += 1
+            enders[(t[-2], t[-1])] += 1
+    top_openers = openers.most_common(40)
+    top_enders = enders.most_common(30)
+
+    video_openings = []
+    video_endings = []
+    for it in items:
+        s_list = split_sentences(it["body"])
+        if s_list:
+            video_openings.append({
+                "file": it["file"],
+                "first3": " ".join(s_list[:3])[:600],
+            })
+            video_endings.append({
+                "file": it["file"],
+                "last3": " ".join(s_list[-3:])[:600],
+            })
+
+    questions = [s for s in sentences if s.endswith("?")]
+    declar = [s for s in sentences if s.endswith(".")]
+
+    phrase_counts = {}
+    text_lower = all_text.lower()
+    for ph in SIGNATURE_PHRASES:
+        phrase_counts[ph] = text_lower.count(ph)
+
+    short_words = sum(1 for w in all_tokens if len(w) <= 4)
+    mid_words = sum(1 for w in all_tokens if 5 <= len(w) <= 8)
+    long_words = sum(1 for w in all_tokens if len(w) >= 9)
+
+    stats = {
+        "summary": {
+            "files": len(items),
+            "tokens_total": len(all_tokens),
+            "types": len(types),
+            "type_token_ratio": round(ttr, 4),
+            "sentences": len(sentences),
+            "avg_sentence_words": round(avg_sent, 2),
+            "median_sentence_words": median_sent,
+            "questions": len(questions),
+            "declaratives": len(declar),
+            "question_ratio_pct": round(100 * len(questions) / max(1, len(sentences)), 2),
+            "words_short_le4_pct": round(100 * short_words / max(1, len(all_tokens)), 2),
+            "words_mid_5_8_pct": round(100 * mid_words / max(1, len(all_tokens)), 2),
+            "words_long_ge9_pct": round(100 * long_words / max(1, len(all_tokens)), 2),
+            "very_short_sentences": len(very_short),
+            "long_sentences_ge30": len(long_sentences),
+        },
+        "top_content_words": top_words,
+        "top_bigrams": [(" ".join(k), v) for k, v in top_bi],
+        "top_trigrams": [(" ".join(k), v) for k, v in top_tri],
+        "top_4grams": [(" ".join(k), v) for k, v in top_4],
+        "top_5grams": [(" ".join(k), v) for k, v in top_5],
+        "top_sentence_openers": [(" ".join(k), v) for k, v in top_openers],
+        "top_sentence_enders": [(" ".join(k), v) for k, v in top_enders],
+        "signature_phrases": phrase_counts,
+        "video_openings_sample": video_openings[:10],
+        "video_endings_sample": video_endings[:10],
+        "very_short_sentences_sample": very_short[:60],
+        "long_sentence_sample": long_sentences[:8],
+    }
+
+    ROOT.mkdir(parents=True, exist_ok=True)
+    OUT_JSON.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    md = []
+    md.append("# Stylometria – surowe statystyki\n")
+    md.append("## Summary\n")
+    for k, v in stats["summary"].items():
+        md.append(f"- **{k}**: {v}")
+    md.append("\n## Top content words (no stopwords, top 50)\n")
+    for w, c in top_words[:50]:
+        md.append(f"- {w} – {c}")
+    md.append("\n## Top bigrams (top 40)\n")
+    for k, c in top_bi[:40]:
+        md.append(f"- `{' '.join(k)}` – {c}")
+    md.append("\n## Top trigrams (top 40)\n")
+    for k, c in top_tri[:40]:
+        md.append(f"- `{' '.join(k)}` – {c}")
+    md.append("\n## Top 4-grams (top 25)\n")
+    for k, c in top_4[:25]:
+        md.append(f"- `{' '.join(k)}` – {c}")
+    md.append("\n## Top 5-grams (top 20)\n")
+    for k, c in top_5[:20]:
+        md.append(f"- `{' '.join(k)}` – {c}")
+    md.append("\n## Top sentence openers (top 30)\n")
+    for k, c in top_openers[:30]:
+        md.append(f"- `{' '.join(k)}...` – {c}")
+    md.append("\n## Top sentence enders (top 20)\n")
+    for k, c in top_enders[:20]:
+        md.append(f"- `...{' '.join(k)}` – {c}")
+    md.append("\n## Signature phrases (frequency)\n")
+    for p, c in sorted(phrase_counts.items(), key=lambda x: -x[1]):
+        md.append(f"- `{p}` – {c}")
+    md.append("\n## Sample very short sentences (≤5 words)\n")
+    for s in very_short[:30]:
+        md.append(f"- {s}")
+    md.append("\n## Sample openings (first 3 sentences per file)\n")
+    for vo in video_openings[:10]:
+        md.append(f"\n### `{vo['file']}`\n{vo['first3']}\n")
+    md.append("\n## Sample endings (last 3 sentences per file)\n")
+    for ve in video_endings[:10]:
+        md.append(f"\n### `{ve['file']}`\n{ve['last3']}\n")
+
+    OUT_MD.write_text("\n".join(md), encoding="utf-8")
+
+    print(f"Wrote {OUT_JSON} and {OUT_MD}")
+    print(f"Files: {len(items)} | Tokens: {len(all_tokens)} | Types: {len(types)} | TTR: {ttr:.4f}")
+    print(f"Sentences: {len(sentences)} | Avg: {avg_sent:.2f} | Median: {median_sent}")
+    print(f"Questions: {len(questions)} | Declar: {len(declar)}")
+
+
+if __name__ == "__main__":
+    main()
