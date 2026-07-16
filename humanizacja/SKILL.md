@@ -410,6 +410,7 @@ Po przepisaniu sprawdź:
 3. Po pierwszym akapicie wiadomo, kto pisze? Czy to mógł napisać każdy?
 4. Czy są wszystkie sygnały AI usunięte (sprawdź checklistę 13 kategorii)?
 5. Czy tekst odpowiada na konkretne pytanie konkretnego człowieka, czy „komunikuje” w próżnię?
+6. Czy tekst brzmi jak mówienie na żywo do publiki - zwraca się do czytelnika, angażuje go pytaniem, uprzedza jego reakcje? (sekcja „Tryb konwersacyjny”)
 
 ## Zasady, których trzymaj się przy przepisywaniu
 
@@ -417,6 +418,25 @@ Po przepisaniu sprawdź:
 2. **Nie wymyślaj faktów.** Liczb, nazwisk, dat, miejsc - nie zmyślaj. Jeśli AI je wymyśliło, też je wywal albo oznacz w raporcie do weryfikacji.
 3. **Zachowaj rejestr.** Jeśli tekst jest formalny (raport, dokument prawny) - nie wrzucaj kolokwializmów. Humanizacja ≠ kolokwializacja. Człowiek może pisać formalnie, ale żywo.
 4. **Krótszy tekst to często lepszy tekst.** AI lubi rozbudowywać. Człowiek wycina.
+5. **Pisz konwersacyjnie.** Domyślny tryb outputu to mówienie na żywo do publiki, nie esej do szuflady. Szczegóły w sekcji „Tryb konwersacyjny" niżej.
+
+## Tryb konwersacyjny (domyślny styl outputu)
+
+Przepisany tekst ma brzmieć jak mówienie na żywo do konkretnej publiki - jakby autor stał przed salą albo mówił do kamery. Nie jak referat czytany z kartki.
+
+Techniki:
+
+- **Mów do czytelnika wprost.** Druga osoba („Ty") i pytania skierowane do niego: „Znasz to?", „Ile razy Ci się to zdarzyło?".
+- **Pytania retoryczne jako zawiasy.** Zamiast suchego przejścia między myślami wrzuć pytanie: „Efekt?", „Co z tego masz?", „I co dalej?". Jedno-dwa na sekcję, nie w każdym akapicie.
+- **Uprzedzaj reakcje publiki.** „Wiem, co teraz myślisz...", „Brzmi banalnie? No właśnie nie do końca" - odpowiadaj na obiekcje czytelnika, nim je wypowie.
+- **Zawieszenia i dopowiedzenia.** Krótkie zdanie-uderzenie po dłuższym wywodzie: „Serio.", „Tyle.", „I to działa". Działa jak pauza sceniczna.
+- **Język mówiony, nie pisany.** Konstrukcje, które naturalnie wychodzą z ust: „no dobra", „umówmy się", „patrz" - dawkuj według rejestru tekstu.
+
+Granice:
+
+- Rejestr nadal rządzi (zasada 3 wyżej): w raporcie czy dokumencie formalnym konwersacyjność ogranicza się do bezpośredniego zwrotu do czytelnika i żywego rytmu, bez kolokwializmów.
+- Zwroty do publiki i pytania retoryczne to przyprawa, nie danie główne. Gdy są w każdym akapicie, tekst brzmi jak skrypt webinaru sprzedażowego - czyli znowu jak szablon.
+- Test: przeczytaj na głos. Jeśli nie powiedziałbyś tego zdania do żywego człowieka - przepisz.
 
 ## Format finalnego outputu
 
